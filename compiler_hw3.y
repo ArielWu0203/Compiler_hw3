@@ -67,6 +67,7 @@ void del_node(Entry *node);
 
 int now_level = 0,now_index = 0;
 
+
 /* ID symbol */
 Entry *now_symbol = NULL;
 
@@ -98,7 +99,6 @@ void gencode_function();
 %token MT LT MTE LTE EQ NE
 
 /* Assignment */
-%token ASGN ADDASGN SUBASGN MULASGN DIVASGN MODASGN
 
 /* Logical */
 %token AND OR NOT
@@ -135,13 +135,13 @@ void gencode_function();
 
 %token <i_val> I_CONST
 %token <f_val> F_CONST
-%token <string> VOID INT FLOAT BOOL STRING ID STR_CONST
-
+%token <string> VOID INT FLOAT BOOL STRING ID STR_CONST ASGN ADDASGN SUBASGN MULASGN DIVASGN MODASGN
 /* Nonterminal with return, which need to sepcify type */
 /*
 %type <f_val> stat
 */
-%type <string> type func_declaration declaration_list
+%type <string> type func_declaration declaration_list assign_operator
+
 
 /* Yacc will start at this nonterminal */
 %start program
@@ -246,7 +246,8 @@ declaration
                 }
 
             }
-      	} else {
+      	} 
+        /*else {
     	    
             if(now_level == 0) {
                 insert_symbol(-1,$2,"variable",$1,now_level,"");
@@ -297,7 +298,7 @@ declaration
                 }
                 now_index++;
             }
-      	}
+      	}*/
         
     }
 ;
@@ -402,7 +403,6 @@ func_def
             func_error = true;
         }else if (error == 0){
             insert_symbol(-1,$2,"function",$1,now_level,$4); 
-            now_index++;
         }else {
             strcpy(ID_name,$2);
         }
@@ -419,7 +419,6 @@ func_def
             func_error = true;
         }else if (error == 0){
             insert_symbol(-1,$2,"function",$1,now_level,""); 
-            now_index++;
         }else {
             strcpy(ID_name,$2);
         }
@@ -499,11 +498,38 @@ assign_stat
     : ID assign_operator operator_stat SEMICOLON 
     {
         if(error == 0) {
-          error = lookup_symbol($1,true,now_level,true); 
-          if(error>0) {
-              strcpy(ID_name,$1);
-          }
+            error = lookup_symbol($1,true,now_level,true); 
+            if(error>0) {
+                strcpy(ID_name,$1);
+            }else {
+                if(!strcmp($2,"=")) {  
+                    if(operator == 1 && !strcmp($1,"float")) {
+
+                        fprintf(file, "\ti2f\n");
+                
+                    } else if(operator == 2 && !strcmp($1,"int")) {
+                    
+                        fprintf(file, "\tf2i\n");
+                
+                    }
+                    operator = 0;
+ 
+                    char t;
+                    if(!strcmp(now_symbol->type,"float")) 
+                        t='f';
+                    else if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool")) 
+                        t='i';
+                    else if(!strcmp(now_symbol->type,"string")) 
+                        t='a';
+                    fprintf(file, "\t%cstore %d\n"
+                                  ,t
+                                  ,now_symbol->index);
+                    
+                }
+ 
+            }
         }
+
     }
     | ID INC SEMICOLON
     { 
@@ -537,18 +563,49 @@ initializer
 operator_stat
     : operator_stat ADD operator_stat
     {
+        char t;
         if(operator == 1)
-            fprintf(file, "\tiadd\n");
+            t='i';
         else if(operator == 2)
-            fprintf(file, "\tfadd\n");
+            t='f';
+        fprintf(file, "\t%cadd\n"
+                      ,t);
     }
     | operator_stat SUB operator_stat
-    | operator_stat MUL operator_stat
     {
-        fprintf(file, "\timul\n");
+        char t;
+        if(operator == 1)
+            t='i';
+        else if(operator == 2)
+            t='f';
+        fprintf(file, "\t%csub\n"
+                      ,t);
+    }
+    | operator_stat MUL operator_stat 
+    {
+        char t;
+        if(operator == 1)
+            t='i';
+        else if(operator == 2)
+            t='f';
+        fprintf(file, "\t%cmul\n"
+                      ,t);
     }
     | operator_stat DIV operator_stat
+    {
+        char t;
+        if(operator == 1)
+            t='i';
+        else if(operator == 2)
+            t='f';
+        fprintf(file, "\t%cdiv\n"
+                      ,t);
+    }
     | operator_stat MOD operator_stat
+    {
+        if (operator == 1)
+            fprintf(file, "\tirem\n");
+    }
     | operator_stat MT operator_stat  
     | operator_stat LT operator_stat
     | operator_stat MTE operator_stat
@@ -579,14 +636,16 @@ operator_stat
             global_float = $1;
         else {
             
-            fprintf(file, "\tldc %f\n"
-                          ,$1);
             if(operator == 0)
                 operator = 2;
             else if(operator == 1) {
                 operator = 2;
                 fprintf(file, "\ti2f\n");
             }
+
+            fprintf(file, "\tldc %f\n"
+                          ,$1);
+        
         }
 
     }
@@ -631,11 +690,34 @@ operator_stat
     }
     | ID
     { 
-        if(error == 0) {
-            error = lookup_symbol($1,true,now_level,true); 
-            if(error>0) {
-                strcpy(ID_name,$1);
+        error = lookup_symbol($1,true,now_level,true); 
+        if(error>0) {
+            strcpy(ID_name,$1);
+        } else {
+            if(now_symbol->index < 0) {
+                fprintf(file, "\tgetstatic compiler_hw3/%s %c\n"
+                              ,now_symbol->name
+                              ,*(now_symbol->type)-32);
             }
+            else if(!strcmp(now_symbol->type,"int")) {
+                fprintf(file, "\tiload %d\n"
+                              ,now_symbol->index);
+                if(operator == 0)
+                    operator = 1;
+                else if(operator == 2)
+                    fprintf(file, "\ti2f\n");
+
+            } else if(!strcmp(now_symbol->type,"float")) {
+                if(operator == 0)
+                    operator = 2;
+                else if(operator == 1) {
+                    operator = 2;
+                    fprintf(file, "\ti2f\n");
+                }
+                fprintf(file, "\tfload %d\n"
+                              ,now_symbol->index);
+            }
+
         }
     }
     | LB operator_stat RB
@@ -649,18 +731,26 @@ print_func
         if(error>0) {
             strcpy(ID_name,$3);
         }else {
-            fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
-                      "\tswap\n");
-            
-            if(!strcmp(now_symbol->type,"int")) {   
-                fprintf(file,  "\tinvokevirtual java/io/PrintStream/println(I)V\n");
-            
-            } else if(!strcmp(now_symbol->type,"float")) {   
-                fprintf(file,  "\tinvokevirtual java/io/PrintStream/println(F)V\n");
-            } else if(!strcmp(now_symbol->type,"string")) {   
-                fprintf(file, "\tinvokevirtual java/io/PrintStream/println(Ljava/lang/String;)V\n");
-        
+            char t;
+            char s[20]="";
+            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool") ) {
+                t = 'i';
+                strcpy(s,"I");
             }
+            else if(!strcmp(now_symbol->type,"float")) {
+                t = 'f';
+                strcpy(s,"F");
+            }
+            else if(!strcmp(now_symbol->type,"string"))  {
+                t = 'a';
+                strcpy(s,"Ljava/lang/String;");
+            }
+        
+            fprintf(file, "\t%cload %d\n"
+                          "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+                          "\tswap\n"
+                          "\tinvokevirtual java/io/PrintStream/println(%s)V\n"
+                          ,t,now_symbol->index,s);
        }
     
     }

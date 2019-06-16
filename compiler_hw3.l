@@ -56,12 +56,12 @@ id			{letter}+({letter}|{digit})*
 "!="	{ CONCAT; return NE; }
 
  /* Assignment */
-"="		{ CONCAT; return ASGN; }
-"+="	{ CONCAT; return ADDASGN; }
-"-="	{ CONCAT; return SUBASGN; }
-"*="	{ CONCAT; return MULASGN; }
-"/="	{ CONCAT; return DIVASGN; }
-"%="	{ CONCAT; return MODASGN; }
+"="		{ CONCAT; yylval.string = strdup(yytext); return ASGN; }
+"+="	{ CONCAT; yylval.string = strdup(yytext); return ADDASGN; }
+"-="	{ CONCAT; yylval.string = strdup(yytext); return SUBASGN; }
+"*="	{ CONCAT; yylval.string = strdup(yytext); return MULASGN; }
+"/="	{ CONCAT; yylval.string = strdup(yytext); return DIVASGN; }
+"%="	{ CONCAT; yylval.string = strdup(yytext); return MODASGN; }
 
  /* Logical */
 "&&"	{ CONCAT; return AND; }
