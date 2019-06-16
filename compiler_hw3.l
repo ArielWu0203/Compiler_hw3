@@ -73,7 +73,6 @@ id			{letter}+({letter}|{digit})*
 ")"		{ CONCAT; return RB; }
 "{"		{ CONCAT; 
           now_level++; 
-          now_index = 0;
           if( same_line == 1) {
             same_line++;
           }
@@ -176,6 +175,7 @@ id			{letter}+({letter}|{digit})*
               else if(dump) { 
                 dump_symbol(1+now_level);
               } 
+              
               dump = false;same_line=0;error=0;
               bzero(buf,BUF_SIZE);
             }

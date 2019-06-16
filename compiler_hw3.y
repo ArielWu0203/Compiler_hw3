@@ -17,9 +17,19 @@ int global_int = 0;
 float global_float = 0;
 bool global_bool = false;
 
+/* varialble */
+
 /* function */
 char func_name[100] = "";
 char func_type[100] = "";
+
+/* 
+    Operator :
+        0 is start
+        1 is integer
+        2 is float
+*/
+int operator = 0;
 
 FILE *file; // To generate .j file for Jasmin
 
@@ -56,6 +66,9 @@ Entry *front,*rear;
 void del_node(Entry *node);
 
 int now_level = 0,now_index = 0;
+
+/* ID symbol */
+Entry *now_symbol = NULL;
 
 /* int to str */
 void int2str(int i,char *s);
@@ -150,9 +163,9 @@ declaration
             strcpy(ID_name,$2);
         }
       	else {
-            insert_symbol(now_index,$2,"variable",$1,now_level,"");
-
-	        if(now_level == 0) {
+	        
+            if(now_level == 0) {
+                insert_symbol(-1,$2,"variable",$1,now_level,"");
                 char s;
                 if(!strcmp($1,"int"))
                     s = 'I';
@@ -164,12 +177,13 @@ declaration
                 fprintf(file, ".field public static %s %c\n",$2,s);
 
             }else {
+                insert_symbol(now_index,$2,"variable",$1,now_level,"");
                 fprintf(file, "\tldc 0\n"
                               "\tistore "
                               "%d\n"
                               ,now_index);
+                now_index++;
             }            
-            now_index++; 
       	}
 
     }
@@ -180,39 +194,62 @@ declaration
             if(error>0) {
                 strcpy(ID_name,$2);
             } else {
-                insert_symbol(now_index,$2,"variable",$1,now_level,"");
-	        if(now_level == 0) {
-                char s;
-                if(!strcmp($1,"int")){
+
+	            if(now_level == 0) {
+                    insert_symbol(-1,$2,"variable",$1,now_level,"");
+                    char s;
+                    if(!strcmp($1,"int")){
+                    
+                        s = 'I';
+                        fprintf(file, ".field public static %s %c = %d\n",$2,s,global_int);
+                        global_int = 0;
+
+                    } else if(!strcmp($1,"float")) {
+
+                        s = 'F';
+                        fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
+                        global_float = 0;
+
+                    } else if(!strcmp($1,"bool")) {
                 
-                    s = 'I';
-                    fprintf(file, ".field public static %s %c = %d\n",$2,s,global_int);
-                    global_int = 0;
+                          s = 'Z';
+                          fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
+                          global_bool = false;
+                    }
 
-            } else if(!strcmp($1,"float")) {
+                } else {
+ 
+                    insert_symbol(now_index,$2,"variable",$1,now_level,"");
+                    
+                    if(operator == 1 && !strcmp($1,"float")) {
+    
+                        fprintf(file, "\ti2f\n");
 
-                s = 'F';
-                fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
-                global_float = 0;
-
-            }else if(!strcmp($1,"bool")) {
+                    } else if(operator == 2 && !strcmp($1,"int")) {
+                    
+                        fprintf(file, "\tf2i\n");
                 
-                s = 'Z';
-                fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
-                global_bool = false;
-            }
+                    }
+                    operator = 0;
 
-            }else {
-                fprintf(file, "\tistore "
-                              "%d\n"
-                              ,now_index);
+                    if(!strcmp($1,"float")) {
+                        fprintf(file, "\tfstore %d\n"
+                                      ,now_index);
+                    } else if(!strcmp($1,"int") || !strcmp($1,"bool")) {
+                        fprintf(file, "\tistore %d\n"
+                                      ,now_index);
+                    } else if(!strcmp($1,"string")) {
+                        fprintf(file, "\tastore %d\n"
+                                      ,now_index);
+                    }
+                    now_index++;
+                }
+
             }
-            now_index++; 
-        }
       	} else {
-            insert_symbol(now_index,$2,"variable",$1,now_level,"");
-
-    	    if(now_level == 0) {
+    	    
+            if(now_level == 0) {
+                insert_symbol(-1,$2,"variable",$1,now_level,"");
                 char s;
                 if(!strcmp($1,"int")){
                 
@@ -220,25 +257,46 @@ declaration
                     fprintf(file, ".field public static %s %c = %d\n",$2,s,global_int);
                     global_int = 0;
 
-            } else if(!strcmp($1,"float")) {
+                } else if(!strcmp($1,"float")) {
+    
+                    s = 'F';
+                    fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
+                    global_float = 0;
 
-                s = 'F';
-                fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
-                global_float = 0;
-
-            }else if(!strcmp($1,"bool")) {
+                }else if(!strcmp($1,"bool")) {
                 
-                s = 'Z';
-                fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
-                global_bool = false;
-            }
+                    s = 'Z';
+                    fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
+                    global_bool = false;
+                }
 
-            }else {
-                fprintf(file, "\tistore "
-                              "%d\n"
-                              ,now_index);
+            } else { 
+ 
+                insert_symbol(now_index,$2,"variable",$1,now_level,"");
+                
+                if(operator == 1 && !strcmp($1,"float")) {
+
+                    fprintf(file, "\ti2f\n");
+                
+                } else if(operator == 2 && !strcmp($1,"int")) {
+                    
+                    fprintf(file, "\tf2i\n");
+                
+                }
+                operator = 0;
+ 
+                if(!strcmp($1,"float")) {
+                    fprintf(file, "\tfstore %d\n"
+                                  ,now_index);
+                } else if(!strcmp($1,"int") || !strcmp($1,"bool")) {
+                    fprintf(file, "\tistore %d\n"
+                                  ,now_index);
+                } else if(!strcmp($1,"string")) {
+                    fprintf(file, "\tastore %d\n"
+                                  ,now_index);
+                }
+                now_index++;
             }
-            now_index++; 
       	}
         
     }
@@ -314,8 +372,7 @@ func_def_start
     {
         if(!func_error) {
             for(int i = 0 ; i < param_i ; i++) {
-                insert_symbol(now_index,param[i],"parameter",param_t[i],now_level,""); 
-                now_index++; 
+                insert_symbol(-1,param[i],"parameter",param_t[i],now_level,""); 
             }
           }
         param_i=0;
@@ -344,7 +401,7 @@ func_def
             strcpy(ID_name,$2);
             func_error = true;
         }else if (error == 0){
-            insert_symbol(now_index,$2,"function",$1,now_level,$4); 
+            insert_symbol(-1,$2,"function",$1,now_level,$4); 
             now_index++;
         }else {
             strcpy(ID_name,$2);
@@ -361,7 +418,7 @@ func_def
             strcpy(ID_name,$2);
             func_error = true;
         }else if (error == 0){
-            insert_symbol(now_index,$2,"function",$1,now_level,""); 
+            insert_symbol(-1,$2,"function",$1,now_level,""); 
             now_index++;
         }else {
             strcpy(ID_name,$2);
@@ -479,8 +536,17 @@ initializer
 
 operator_stat
     : operator_stat ADD operator_stat
+    {
+        if(operator == 1)
+            fprintf(file, "\tiadd\n");
+        else if(operator == 2)
+            fprintf(file, "\tfadd\n");
+    }
     | operator_stat SUB operator_stat
     | operator_stat MUL operator_stat
+    {
+        fprintf(file, "\timul\n");
+    }
     | operator_stat DIV operator_stat
     | operator_stat MOD operator_stat
     | operator_stat MT operator_stat  
@@ -507,28 +573,61 @@ operator_stat
             }
         }
     }
-    | ADD operator_stat
-    | SUB operator_stat
     | F_CONST
     {
         if(now_level == 0)
             global_float = $1;
+        else {
+            
+            fprintf(file, "\tldc %f\n"
+                          ,$1);
+            if(operator == 0)
+                operator = 2;
+            else if(operator == 1) {
+                operator = 2;
+                fprintf(file, "\ti2f\n");
+            }
+        }
+
     }
     | I_CONST
     {
         if(now_level == 0) 
             global_int = $1;
+        else {
+
+            fprintf(file, "\tldc %d\n",
+                          $1);
+        
+            if(operator == 0)
+                operator = 1;
+            else if(operator == 2)
+                fprintf(file, "\ti2f\n");
+
+        }
+
     }
     | STR_CONST
+    {
+        if(now_level != 0) {
+            fprintf(file, "\tldc \"%s\"\n"
+                          ,$1);
+        }
+
+    }
     | TRUE
     {
         if(now_level == 0)
             global_bool = true;
+        else 
+            fprintf(file, "\tldc 1\n");
     }
     | FALSE
     {
         if(now_level == 0)
             global_bool = false;
+         else 
+            fprintf(file, "\tldc 0\n");
     }
     | ID
     { 
@@ -549,11 +648,51 @@ print_func
         error = lookup_symbol($3,true,now_level,true); 
         if(error>0) {
             strcpy(ID_name,$3);
-        }
+        }else {
+            fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+                      "\tswap\n");
+            
+            if(!strcmp(now_symbol->type,"int")) {   
+                fprintf(file,  "\tinvokevirtual java/io/PrintStream/println(I)V\n");
+            
+            } else if(!strcmp(now_symbol->type,"float")) {   
+                fprintf(file,  "\tinvokevirtual java/io/PrintStream/println(F)V\n");
+            } else if(!strcmp(now_symbol->type,"string")) {   
+                fprintf(file, "\tinvokevirtual java/io/PrintStream/println(Ljava/lang/String;)V\n");
+        
+            }
+       }
+    
     }
     | PRINT LB STR_CONST RB SEMICOLON
-;
+    {
+        
+        fprintf(file, "\tldc \"%s\"\n"
+                      ,$3);
+        fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+                      "\tswap\n"
+                      "\tinvokevirtual java/io/PrintStream/println(Ljava/lang/String;)V\n");
 
+    }
+    | PRINT LB I_CONST RB SEMICOLON
+    {
+        fprintf(file, "\tldc %d\n"
+                      ,$3);
+        fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+                      "\tswap\n"
+                      "\tinvokevirtual java/io/PrintStream/println(I)V\n");
+
+    }
+    | PRINT LB F_CONST RB SEMICOLON
+    {
+        fprintf(file, "\tldc %f\n"
+                      ,$3);
+        fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+                      "\tswap\n"
+                      "\tinvokevirtual java/io/PrintStream/println(F)V\n");
+
+    }
+;
 
 /* actions can be taken when meet the token or rule */
 type
@@ -641,6 +780,7 @@ int lookup_symbol(char *name,bool variable,int scope,bool declare) {
         Entry *head = rear;
         while(head!=NULL) {
             if(head->scope_level <= scope && !strcmp(name,head->name)) { 
+                now_symbol = head;
                 return 0;
             }
             head = head->prev;
@@ -692,8 +832,6 @@ void del_node(Entry *node) {
 
 void dump_symbol(int scope) {
 
-    int index = 0;
-    
     Entry *head = front;
     
     while(head!=NULL) {
@@ -704,11 +842,11 @@ void dump_symbol(int scope) {
                 "Index", "Name", "Kind", "Type", "Scope", "Attribute");
             while(head != NULL && head->scope_level == scope) {
                 printf("%-10d%-10s%-12s%-10s%-10d%s\n",head->index,head->name,head->kind,head->type,head->scope_level,head->attr);
-                //index++;
 
                 Entry *tmp = head;
                 head = head->next;
                 del_node(tmp);
+                now_index--;
             }
             printf("\n");
             return;
