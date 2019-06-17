@@ -75,8 +75,11 @@ Entry *now_symbol = NULL;
 void int2str(int i,char *s);
 
 /* code generation functions, just an example! */
-void gencode_function();
-
+void insert_var(char *name,char *type,bool assigned);
+void assign_var(char *type,char *asgn);
+void casting(char *type,char *s);
+char type_return(char *type);
+void return_func(); 
 %}
 
 /* Use variable or self-defined structure to represent
@@ -159,147 +162,21 @@ declaration
     : type ID SEMICOLON 
     {
 	    error = lookup_symbol($2,true,now_level,false); 
-	    if(error > 0) {
+	    if(error > 0) 
             strcpy(ID_name,$2);
-        }
-      	else {
-	        
-            if(now_level == 0) {
-                insert_symbol(-1,$2,"variable",$1,now_level,"");
-                char s;
-                if(!strcmp($1,"int"))
-                    s = 'I';
-                else if(!strcmp($1,"float"))
-                    s = 'F';
-                else if(!strcmp($1,"bool"))
-                    s = 'Z';
-
-                fprintf(file, ".field public static %s %c\n",$2,s);
-
-            }else {
-                insert_symbol(now_index,$2,"variable",$1,now_level,"");
-                fprintf(file, "\tldc 0\n"
-                              "\tistore "
-                              "%d\n"
-                              ,now_index);
-                now_index++;
-            }            
-      	}
+      	else 
+	        insert_var($2,$1,false);   
 
     }
     | type ID ASGN initializer SEMICOLON 
     {
 	    if (error == 0) {
             error = lookup_symbol($2,true,now_level,false); 
-            if(error>0) {
+            if(error>0) 
                 strcpy(ID_name,$2);
-            } else {
-
-	            if(now_level == 0) {
-                    insert_symbol(-1,$2,"variable",$1,now_level,"");
-                    char s;
-                    if(!strcmp($1,"int")){
-                    
-                        s = 'I';
-                        fprintf(file, ".field public static %s %c = %d\n",$2,s,global_int);
-                        global_int = 0;
-
-                    } else if(!strcmp($1,"float")) {
-
-                        s = 'F';
-                        fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
-                        global_float = 0;
-
-                    } else if(!strcmp($1,"bool")) {
-                
-                          s = 'Z';
-                          fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
-                          global_bool = false;
-                    }
-
-                } else {
- 
-                    insert_symbol(now_index,$2,"variable",$1,now_level,"");
-                    
-                    if(operator == 1 && !strcmp($1,"float")) {
-    
-                        fprintf(file, "\ti2f\n");
-
-                    } else if(operator == 2 && !strcmp($1,"int")) {
-                    
-                        fprintf(file, "\tf2i\n");
-                
-                    }
-                    operator = 0;
-
-                    if(!strcmp($1,"float")) {
-                        fprintf(file, "\tfstore %d\n"
-                                      ,now_index);
-                    } else if(!strcmp($1,"int") || !strcmp($1,"bool")) {
-                        fprintf(file, "\tistore %d\n"
-                                      ,now_index);
-                    } else if(!strcmp($1,"string")) {
-                        fprintf(file, "\tastore %d\n"
-                                      ,now_index);
-                    }
-                    now_index++;
-                }
-
-            }
+            else 
+                insert_var($2,$1,true);
       	} 
-        /*else {
-    	    
-            if(now_level == 0) {
-                insert_symbol(-1,$2,"variable",$1,now_level,"");
-                char s;
-                if(!strcmp($1,"int")){
-                
-                    s = 'I';
-                    fprintf(file, ".field public static %s %c = %d\n",$2,s,global_int);
-                    global_int = 0;
-
-                } else if(!strcmp($1,"float")) {
-    
-                    s = 'F';
-                    fprintf(file, ".field public static %s %c = %f\n",$2,s,global_float);
-                    global_float = 0;
-
-                }else if(!strcmp($1,"bool")) {
-                
-                    s = 'Z';
-                    fprintf(file , ".field public static %s %c = %d\n",$2,s,global_bool);
-                    global_bool = false;
-                }
-
-            } else { 
- 
-                insert_symbol(now_index,$2,"variable",$1,now_level,"");
-                
-                if(operator == 1 && !strcmp($1,"float")) {
-
-                    fprintf(file, "\ti2f\n");
-                
-                } else if(operator == 2 && !strcmp($1,"int")) {
-                    
-                    fprintf(file, "\tf2i\n");
-                
-                }
-                operator = 0;
- 
-                if(!strcmp($1,"float")) {
-                    fprintf(file, "\tfstore %d\n"
-                                  ,now_index);
-                } else if(!strcmp($1,"int") || !strcmp($1,"bool")) {
-                    fprintf(file, "\tistore %d\n"
-                                  ,now_index);
-                } else if(!strcmp($1,"string")) {
-                    fprintf(file, "\tastore %d\n"
-                                  ,now_index);
-                }
-                now_index++;
-            }
-      	}*/
-        
     }
 ;
 
@@ -450,14 +327,11 @@ function_call
 return_stat
     : RET SEMICOLON
     {
-        if(!strcmp(func_type,"void"))
-            fprintf(file, "\treturn\n");
+        return_func();
     }
-    | RET operator_stat SEMICOLON{
-        if(!strcmp(func_type, "int"))
-            fprintf(file, "\tireturn\n");
-        else if(!strcmp(func_type, "float"))
-            fprintf(file, "\tfreturn\n");
+    | RET operator_stat SEMICOLON
+    {
+        return_func();
     }
 ;
     
@@ -502,31 +376,7 @@ assign_stat
             if(error>0) {
                 strcpy(ID_name,$1);
             }else {
-                if(!strcmp($2,"=")) {  
-                    if(operator == 1 && !strcmp($1,"float")) {
-
-                        fprintf(file, "\ti2f\n");
-                
-                    } else if(operator == 2 && !strcmp($1,"int")) {
-                    
-                        fprintf(file, "\tf2i\n");
-                
-                    }
-                    operator = 0;
- 
-                    char t;
-                    if(!strcmp(now_symbol->type,"float")) 
-                        t='f';
-                    else if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool")) 
-                        t='i';
-                    else if(!strcmp(now_symbol->type,"string")) 
-                        t='a';
-                    fprintf(file, "\t%cstore %d\n"
-                                  ,t
-                                  ,now_symbol->index);
-                    
-                }
- 
+                assign_var(now_symbol->type,$2);   
             }
         }
 
@@ -563,48 +413,31 @@ initializer
 operator_stat
     : operator_stat ADD operator_stat
     {
-        char t;
-        if(operator == 1)
-            t='i';
-        else if(operator == 2)
-            t='f';
-        fprintf(file, "\t%cadd\n"
-                      ,t);
+        fprintf(file, "\tfadd\n");
     }
     | operator_stat SUB operator_stat
     {
-        char t;
-        if(operator == 1)
-            t='i';
-        else if(operator == 2)
-            t='f';
-        fprintf(file, "\t%csub\n"
-                      ,t);
+        fprintf(file, "\tfsub\n");
     }
     | operator_stat MUL operator_stat 
-    {
-        char t;
-        if(operator == 1)
-            t='i';
-        else if(operator == 2)
-            t='f';
-        fprintf(file, "\t%cmul\n"
-                      ,t);
+    { 
+        fprintf(file, "\tfmul\n");
     }
     | operator_stat DIV operator_stat
-    {
-        char t;
-        if(operator == 1)
-            t='i';
-        else if(operator == 2)
-            t='f';
-        fprintf(file, "\t%cdiv\n"
-                      ,t);
+    { 
+        fprintf(file, "\tfdiv\n");
     }
     | operator_stat MOD operator_stat
     {
-        if (operator == 1)
-            fprintf(file, "\tirem\n");
+        fprintf(file, "\tf2i\n"
+                      "\tistore %d\n"
+                      "\tf2i\n"
+                      "\tistore %d\n"
+                      "\tiload %d\n"
+                      "\tiload %d\n"
+                      ,now_index,now_index+1,now_index+1,now_index);
+        fprintf(file, "\tirem\n"
+                      "\ti2f\n");
     }
     | operator_stat MT operator_stat  
     | operator_stat LT operator_stat
@@ -634,19 +467,8 @@ operator_stat
     {
         if(now_level == 0)
             global_float = $1;
-        else {
-            
-            if(operator == 0)
-                operator = 2;
-            else if(operator == 1) {
-                operator = 2;
-                fprintf(file, "\ti2f\n");
-            }
-
-            fprintf(file, "\tldc %f\n"
-                          ,$1);
-        
-        }
+        else 
+            fprintf(file, "\tldc %f\n",$1);
 
     }
     | I_CONST
@@ -654,15 +476,9 @@ operator_stat
         if(now_level == 0) 
             global_int = $1;
         else {
-
-            fprintf(file, "\tldc %d\n",
-                          $1);
-        
-            if(operator == 0)
-                operator = 1;
-            else if(operator == 2)
-                fprintf(file, "\ti2f\n");
-
+            fprintf(file, "\tldc %d\n"
+                          "\ti2f\n"
+                          ,$1);
         }
 
     }
@@ -702,18 +518,9 @@ operator_stat
             else if(!strcmp(now_symbol->type,"int")) {
                 fprintf(file, "\tiload %d\n"
                               ,now_symbol->index);
-                if(operator == 0)
-                    operator = 1;
-                else if(operator == 2)
                     fprintf(file, "\ti2f\n");
 
             } else if(!strcmp(now_symbol->type,"float")) {
-                if(operator == 0)
-                    operator = 2;
-                else if(operator == 1) {
-                    operator = 2;
-                    fprintf(file, "\ti2f\n");
-                }
                 fprintf(file, "\tfload %d\n"
                               ,now_symbol->index);
             }
@@ -953,4 +760,148 @@ void int2str(int i,char *s) {
 }
 
 /* code generation functions */
-void gencode_function() {}
+void insert_var(char *name,char *type,bool assigned) {
+    
+    if(now_level == 0) {
+        insert_symbol(-1,name,"variable",type,now_level,"");
+        char t;
+        if(!strcmp(type,"int"))
+            t = 'I';
+        else if(!strcmp(type,"float"))
+            t = 'F';
+        else if(!strcmp(type,"bool"))
+            t = 'Z';
+
+        if(assigned) {
+            switch(t){
+                case 'I':
+                fprintf(file, ".field public static %s %c = %d\n",name,t,global_int);
+                global_int = 0;
+                break;
+                case 'F':
+                fprintf(file, ".field public static %s %c = %f\n",name,t,global_float);
+                global_float = 0.0;
+                break;
+                case 'Z':
+                fprintf(file, ".field public static %s %c = %d\n",name,t,global_bool);
+                global_bool = 0;
+                break;
+            }
+        } else {
+            fprintf(file, ".field public static %s %c\n",name,t);
+        }
+
+    }else {
+        insert_symbol(now_index,name,"variable",type,now_level,"");
+        
+        char t = type_return(type);
+
+        if(!assigned) 
+            fprintf(file, "\tldc 0\n");
+
+        char s[10] = "";
+        casting(type,s);
+
+        fprintf(file, "%s"
+                      "\t%cstore %d\n"
+                      ,s
+                      ,t
+                      ,now_index);
+
+        now_index++;
+        operator = 0;
+
+    }
+
+}
+void assign_var(char *type,char *asgn) {
+
+    char t = type_return(type);
+    char s[10] = "";
+    casting(type,s);
+                
+    if(!strcmp(asgn,"=")) {  
+    
+    } else if(!strcmp(asgn,"+=") || !strcmp(asgn,"-=") || !strcmp(asgn,"*=")|| !strcmp(asgn,"/=") ) {
+        
+        char i_2_f[10] = ""; 
+        if( t == 'i')
+            strcpy(i_2_f,"\ti2f\n");
+
+        fprintf(file, "\tfstore %d\n",now_index);
+
+        fprintf(file, "\t%cload %d\n%s"
+                      ,t,now_symbol->index,i_2_f);     
+
+        fprintf(file, "\tfload %d\n"
+                      ,now_index);     
+
+        char operator[10] = "";//add,sub,mul,div
+        switch(asgn[0]) {
+            case '+':
+                strcpy(operator,"add");break;
+            case '-':
+                strcpy(operator,"sub");break;
+            case '*':
+                strcpy(operator,"mul");break;
+            case '/':
+                strcpy(operator,"div");break;
+        }
+        fprintf(file, "\tf%s\n",operator);
+    } else if(!strcmp(asgn,"%=")) { 
+        char i_2_f[10] = ""; 
+        if( t == 'i')
+            strcpy(i_2_f,"\ti2f\n");
+
+        fprintf(file, "\tfstore %d\n",now_index);
+
+        fprintf(file, "\t%cload %d\n%s"
+                      ,t,now_symbol->index,i_2_f);     
+
+        fprintf(file, "\tfload %d\n"
+                      ,now_index);     
+
+        fprintf(file, "\tf2i\n"
+                      "\tistore %d\n"
+                      "\tf2i\n"
+                      "\tistore %d\n"
+                      "\tiload %d\n"
+                      "\tiload %d\n"
+                      ,now_index,now_index+1,now_index,now_index+1);
+        fprintf(file, "\tirem\n"
+                      "\ti2f\n");
+ 
+    }
+    fprintf(file, "%s"
+                  "\t%cstore %d\n"
+                  ,s,t,now_symbol->index);
+    operator = 0;
+}
+
+void casting(char *type,char *s) {
+    if(!strcmp(type,"int"))
+        strcpy(s,"\tf2i\n");
+}
+
+char type_return(char *type) {
+        char t; 
+        if(!strcmp(type,"int") || !strcmp(type, "bool"))
+            t = 'i';
+        else if(!strcmp(type,"float"))
+            t = 'f';
+        else if(!strcmp(type,"string"))
+            t = 'a';
+        return t;
+}
+
+void return_func() {
+
+    if(!strcmp(func_type,"void"))
+        fprintf(file, "\treturn\n");
+    else if(!strcmp(func_type, "int"))
+        fprintf(file, "\tireturn\n");
+    else if(!strcmp(func_type, "float"))
+        fprintf(file, "\tfreturn\n");
+    return;
+
+}
