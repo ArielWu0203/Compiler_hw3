@@ -71,12 +71,20 @@ int now_level = 0,now_index = 0;
 /* ID symbol */
 Entry *now_symbol = NULL;
 
+/* Stack */
+bool stack[50];
+int stack_index = 0;
+
 /* int to str */
 void int2str(int i,char *s);
+/* float to str */
+void float2str(float i, char *s);
 
 /* code generation functions, just an example! */
 void insert_var(char *name,char *type,bool assigned);
 void assign_var(char *type,char *asgn);
+void get_ID();
+char calculate();
 void casting(char *type,char *s);
 char type_return(char *type);
 void return_func(); 
@@ -413,31 +421,31 @@ initializer
 operator_stat
     : operator_stat ADD operator_stat
     {
-        fprintf(file, "\tfadd\n");
+        char t = calculate();
+        fprintf(file, "\t%cadd\n",t);
+
     }
     | operator_stat SUB operator_stat
     {
-        fprintf(file, "\tfsub\n");
+        char t = calculate();
+        fprintf(file, "\t%csub\n", t);
     }
     | operator_stat MUL operator_stat 
-    { 
-        fprintf(file, "\tfmul\n");
+    {         
+        char t = calculate();
+        fprintf(file, "\t%cmul\n", t);
     }
     | operator_stat DIV operator_stat
-    { 
-        fprintf(file, "\tfdiv\n");
+    {        
+        char t = calculate();
+        fprintf(file, "\t%cdiv\n", t);
     }
     | operator_stat MOD operator_stat
     {
-        fprintf(file, "\tf2i\n"
-                      "\tistore %d\n"
-                      "\tf2i\n"
-                      "\tistore %d\n"
-                      "\tiload %d\n"
-                      "\tiload %d\n"
-                      ,now_index,now_index+1,now_index+1,now_index);
-        fprintf(file, "\tirem\n"
-                      "\ti2f\n");
+        if(!stack[stack_index-1] && !stack[stack_index-2] ){
+            fprintf(file, "\tirem\n");
+            stack_index--;
+        }
     }
     | operator_stat MT operator_stat  
     | operator_stat LT operator_stat
@@ -467,18 +475,21 @@ operator_stat
     {
         if(now_level == 0)
             global_float = $1;
-        else 
-            fprintf(file, "\tldc %f\n",$1);
-
+        else {
+            fprintf(file ,"\tldc %f\n",$1);
+            stack[stack_index]  = true;
+            stack_index++;
+        
+        }
     }
     | I_CONST
     {
         if(now_level == 0) 
             global_int = $1;
         else {
-            fprintf(file, "\tldc %d\n"
-                          "\ti2f\n"
-                          ,$1);
+            fprintf(file ,"\tldc %d\n",$1);
+            stack[stack_index]  = false;
+            stack_index++;
         }
 
     }
@@ -507,25 +518,11 @@ operator_stat
     | ID
     { 
         error = lookup_symbol($1,true,now_level,true); 
-        if(error>0) {
+        if(error != 0)
             strcpy(ID_name,$1);
-        } else {
-            if(now_symbol->index < 0) {
-                fprintf(file, "\tgetstatic compiler_hw3/%s %c\n"
-                              ,now_symbol->name
-                              ,*(now_symbol->type)-32);
-            }
-            else if(!strcmp(now_symbol->type,"int")) {
-                fprintf(file, "\tiload %d\n"
-                              ,now_symbol->index);
-                    fprintf(file, "\ti2f\n");
+        else 
+            get_ID();
 
-            } else if(!strcmp(now_symbol->type,"float")) {
-                fprintf(file, "\tfload %d\n"
-                              ,now_symbol->index);
-            }
-
-        }
     }
     | LB operator_stat RB
     | function_call
@@ -538,28 +535,23 @@ print_func
         if(error>0) {
             strcpy(ID_name,$3);
         }else {
-            char t;
-            char s[20]="";
-            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool") ) {
-                t = 'i';
-                strcpy(s,"I");
-            }
-            else if(!strcmp(now_symbol->type,"float")) {
-                t = 'f';
-                strcpy(s,"F");
-            }
-            else if(!strcmp(now_symbol->type,"string"))  {
-                t = 'a';
-                strcpy(s,"Ljava/lang/String;");
-            }
-        
-            fprintf(file, "\t%cload %d\n"
-                          "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
+            char t[20] = "";
+            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool") ) 
+                strcpy(t,"I");
+            else if(!strcmp(now_symbol->type,"float")) 
+                strcpy(t,"F");
+            else if(!strcmp(now_symbol->type,"string"))  
+                strcpy(t,"Ljava/lang/String;");
+            
+            get_ID();
+            stack_index = 0;
+
+            fprintf(file, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n"
                           "\tswap\n"
                           "\tinvokevirtual java/io/PrintStream/println(%s)V\n"
-                          ,t,now_symbol->index,s);
+                          ,t);
+
        }
-    
     }
     | PRINT LB STR_CONST RB SEMICOLON
     {
@@ -754,9 +746,13 @@ void dump_symbol(int scope) {
     return;
 }
 
-/* int to str */
+/* int to string */
 void int2str(int i,char *s) {
     sprintf(s,"%d",i);
+}
+/* float to string */
+void float2str(float i, char *s) {
+    sprintf(s,"%f",i);
 }
 
 /* code generation functions */
@@ -810,77 +806,139 @@ void insert_var(char *name,char *type,bool assigned) {
 
         now_index++;
         operator = 0;
-
+        stack_index = 0;
     }
 
 }
 void assign_var(char *type,char *asgn) {
 
     char t = type_return(type);
-    char s[10] = "";
-    casting(type,s);
+    char s;
+    char to[10] = "";
                 
     if(!strcmp(asgn,"=")) {  
     
-    } else if(!strcmp(asgn,"+=") || !strcmp(asgn,"-=") || !strcmp(asgn,"*=")|| !strcmp(asgn,"/=") ) {
-        
-        char i_2_f[10] = ""; 
-        if( t == 'i')
-            strcpy(i_2_f,"\ti2f\n");
-
-        fprintf(file, "\tfstore %d\n",now_index);
-
-        fprintf(file, "\t%cload %d\n%s"
-                      ,t,now_symbol->index,i_2_f);     
-
-        fprintf(file, "\tfload %d\n"
-                      ,now_index);     
-
-        char operator[10] = "";//add,sub,mul,div
-        switch(asgn[0]) {
-            case '+':
-                strcpy(operator,"add");break;
-            case '-':
-                strcpy(operator,"sub");break;
-            case '*':
-                strcpy(operator,"mul");break;
-            case '/':
-                strcpy(operator,"div");break;
-        }
-        fprintf(file, "\tf%s\n",operator);
-    } else if(!strcmp(asgn,"%=")) { 
-        char i_2_f[10] = ""; 
-        if( t == 'i')
-            strcpy(i_2_f,"\ti2f\n");
-
-        fprintf(file, "\tfstore %d\n",now_index);
-
-        fprintf(file, "\t%cload %d\n%s"
-                      ,t,now_symbol->index,i_2_f);     
-
-        fprintf(file, "\tfload %d\n"
-                      ,now_index);     
-
-        fprintf(file, "\tf2i\n"
-                      "\tistore %d\n"
-                      "\tf2i\n"
-                      "\tistore %d\n"
-                      "\tiload %d\n"
-                      "\tiload %d\n"
-                      ,now_index,now_index+1,now_index,now_index+1);
-        fprintf(file, "\tirem\n"
-                      "\ti2f\n");
+    } else {
  
+        if(stack[stack_index-1]) //float
+            s = 'f';
+        else //int
+            s = 'i';
+        
+        fprintf(file, "\t%cstore %d\n",s,now_index);
+        stack_index--;
+        fprintf(file, "\t%cload %d\n",t,now_symbol->index);// load ID     
+        stack[stack_index] = (t=='i') ? false : true ;
+        stack_index++;
+        fprintf(file, "\t%cload %d\n",s,now_index);     
+        stack[stack_index] = (s=='i') ? false : true ;
+        stack_index++;
+
+        if(!strcmp(asgn,"%=")) { 
+            if(!stack[stack_index-1] && !stack[stack_index-2] ){
+                fprintf(file, "\tirem\n");
+                stack_index--;
+            }
+        }else {
+
+            char w = calculate();
+
+            char operator[10] = "";//add,sub,mul,div
+            switch(asgn[0]) {
+                case '+':
+                    strcpy(operator,"add");break;
+                case '-':
+                    strcpy(operator,"sub");break;
+                case '*':
+                    strcpy(operator,"mul");break;
+                case '/':
+                    strcpy(operator,"div");break;
+            }
+
+            fprintf(file, "\t%c%s\n",w,operator);
+        }
     }
+
+    casting(type,to);
+
     fprintf(file, "%s"
                   "\t%cstore %d\n"
-                  ,s,t,now_symbol->index);
+                  ,to
+                  ,t
+                  ,now_symbol->index);
     operator = 0;
+    stack_index = 0;
 }
 
+char calculate() {
+    char t;
+    if(!stack[stack_index-1] && !stack[stack_index-2]) { // int,int
+        t = 'i';
+        stack[stack_index-2] = false; // int
+    }
+    else {
+        t = 'f';
+        if(!stack[stack_index-1] && stack[stack_index-2]) { // int,float
+            fprintf(file, "\ti2f\n");
+        } else if(stack[stack_index-1] && !stack[stack_index-2]) {// float,int
+            fprintf(file, "\tfstore %d\n"
+                          "\ti2f\n"
+                          "\tfload %d\n"
+                          ,now_index,now_index);
+                
+        }
+        stack[stack_index-2] = true; // float
+    }
+    stack_index -= 1;
+    return t; 
+}
+void get_ID() {
+    if(now_symbol->index < 0) {
+        if(!strcmp(now_symbol->type,"bool")) 
+            fprintf(file, "\tgetstatic compiler_hw3/%s Z\n"
+                          ,now_symbol->name);
+        else 
+            fprintf(file, "\tgetstatic compiler_hw3/%s %c\n"
+                          ,now_symbol->name
+                          ,*(now_symbol->type)-32);
+
+        if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool")) 
+            stack[stack_index]  = false;
+        else if(!strcmp(now_symbol->type,"float")) 
+            stack[stack_index]  = true;
+        
+        stack_index++;
+
+
+    }
+    else if(!strcmp(now_symbol->type,"int")) {
+        fprintf(file, "\tiload %d\n"
+                      ,now_symbol->index);
+        stack[stack_index]  = false;
+        stack_index++;
+
+    }else if(!strcmp(now_symbol->type,"float")) {
+        fprintf(file, "\tfload %d\n"
+                      ,now_symbol->index);
+        stack[stack_index]  = true;
+        stack_index++;
+    }else if(!strcmp(now_symbol->type,"string")) {
+        fprintf(file, "\taload %d\n"
+                      ,now_symbol->index);
+    }else if(!strcmp(now_symbol->type,"bool")) {
+        fprintf(file, "\tiload %d\n"
+                      ,now_symbol->index);
+    }
+
+
+}
 void casting(char *type,char *s) {
-    if(!strcmp(type,"int"))
+        
+    if(!strcmp(type,"int") && stack[stack_index-1])
         strcpy(s,"\tf2i\n");
+    else if(!strcmp(type,"float") && !stack[stack_index-1])
+        strcpy(s,"\ti2f\n");
+
 }
 
 char type_return(char *type) {
@@ -905,3 +963,5 @@ void return_func() {
     return;
 
 }
+
+
