@@ -201,9 +201,36 @@ statement
 ;
 
 if_stat
-    : IF LB operator_stat RB compound_stat 
-    | IF LB operator_stat RB compound_stat else_stat
+    : IF LB expression RB compound_stat 
+    {
+        stack_index = 0;
+    }
+    | IF LB expression RB compound_stat else_stat
+    {
+        stack_index = 0;
+    }
 ;
+
+expression
+    : term MT term
+    | term LT term
+    | term MTE term
+    | term LTE term
+    | term EQ term
+    {
+        if(!stack[stack_index-1] && !stack[stack_index-2] ){
+            fprintf(file, "\tisub\n");
+            stack[stack_index-2] = false;//int
+            stack_index--;
+        }else if(!stack[stack_index-1] && !stack[stack_index-2] ){
+            fprintf(file, "\tfsub\n");
+            stack[stack_index-2] = true;//true
+            stack_index--;
+        }
+    }
+    | term NE term
+;
+
 
 else_stat
     : ELSE statement 
@@ -447,15 +474,10 @@ operator_stat
     {
         if(!stack[stack_index-1] && !stack[stack_index-2] ){
             fprintf(file, "\tirem\n");
+            stack[stack_index-2] = false;//int
             stack_index--;
         }
     }
-    | operator_stat MT operator_stat  
-    | operator_stat LT operator_stat
-    | operator_stat MTE operator_stat
-    | operator_stat LTE operator_stat
-    | operator_stat EQ operator_stat
-    | operator_stat NE operator_stat
     | ID INC 
     { 
         if(error == 0) {
@@ -484,57 +506,13 @@ operator_stat
             }
         }
     }
-    | F_CONST
-    {
-        if(now_level == 0)
-            global_float = $1;
-        else {
-            fprintf(file ,"\tldc %f\n",$1);
-            stack[stack_index]  = true;
-            stack_index++;
-        
-        }
-    }
-    | I_CONST
-    {
-        if(now_level == 0) 
-            global_int = $1;
-        else {
-            fprintf(file ,"\tldc %d\n",$1);
-            stack[stack_index]  = false;
-            stack_index++;
-        }
-
-    }
+    | term
     | STR_CONST
     {
         if(now_level != 0) {
             fprintf(file, "\tldc \"%s\"\n"
                           ,$1);
         }
-
-    }
-    | TRUE
-    {
-        if(now_level == 0)
-            global_bool = true;
-        else 
-            fprintf(file, "\tldc 1\n");
-    }
-    | FALSE
-    {
-        if(now_level == 0)
-            global_bool = false;
-         else 
-            fprintf(file, "\tldc 0\n");
-    }
-    | ID
-    { 
-        error = lookup_symbol($1,true,now_level,true); 
-        if(error != 0)
-            strcpy(ID_name,$1);
-        else 
-            get_ID();
 
     }
     | LB operator_stat RB
@@ -593,6 +571,54 @@ print_func
                       "\tswap\n"
                       "\tinvokevirtual java/io/PrintStream/println(F)V\n");
 
+    }
+;
+
+term
+    : I_CONST
+    {
+        if(now_level == 0) 
+            global_int = $1;
+        else {
+            fprintf(file ,"\tldc %d\n",$1);
+            stack[stack_index]  = false;
+            stack_index++;
+        }
+    }
+    | F_CONST
+    {
+        if(now_level == 0)
+            global_float = $1;
+        else {
+            fprintf(file ,"\tldc %f\n",$1);
+            stack[stack_index]  = true;
+            stack_index++;
+        
+        }
+    }
+    | ID
+    {
+        error = lookup_symbol($1,true,now_level,true); 
+        if(error != 0)
+            strcpy(ID_name,$1);
+        else 
+            get_ID();
+
+    }
+    | TRUE
+    {
+        if(now_level == 0)
+            global_bool = true;
+        else 
+            fprintf(file, "\tldc 1\n");
+    }
+    | FALSE
+    {
+        if(now_level == 0)
+            global_bool = false;
+        else 
+            fprintf(file, "\tldc 0\n");
+    
     }
 ;
 

@@ -1,9 +1,11 @@
 void main(){
 	int a = 20;
-    float c = 1.2;
-    float b = c*a--;
-    print(a);
-    print(b);
-	return;
+	if(a == 20) {
+        int b = 3;
+    }else {
+        int c  = 4; 
+    }
+    int d = 5;
+    return;
 }
 
