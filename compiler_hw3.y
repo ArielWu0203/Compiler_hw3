@@ -20,6 +20,10 @@ bool global_bool = false;
 /* label for if statement */
 int Label = 0;
 int Exit = 0;
+int exit_stack[500];
+void init_exit_stack();
+int label_stack[500];
+int label_index = 0;
 
 /* function */
 char func_name[100] = "";
@@ -193,6 +197,8 @@ declaration
 
 statement
     : if_stat
+    {
+    }
     | while_stat
     | compound_stat
     | function_stat
@@ -203,20 +209,47 @@ statement
 ;
 
 if_stat
-    : if_exper 
-    { 
-        fprintf(file, "\tEXIT_%d:\n",Exit);
+    : if_exper_compound
+    {
+        char string[5000] = "EXIT";
+        int i;
+        for(i = 0; i <= Exit; i++) {
+            char s[5] = "";
+            int2str(exit_stack[i],s);
+            strcat(string,"_");
+            strcat(string,s);
+        }
+        fprintf(file, "\t%s:\n",string);
+        exit_stack[Exit]++;
     }
-    | if_exper else_stat
+    | if_exper_compound else_stat
+;
+
+if_exper_compound
+    : if_exper compound_stat
+    {
+        Exit--;
+        label_index--;
+        char string[5000] = "EXIT";
+        int i;
+        for(i = 0; i <= Exit; i++) {
+            char s[5] = "";
+            int2str(exit_stack[i],s);
+            strcat(string,"_");
+            strcat(string,s);
+        }
+        fprintf(file, "\tgoto %s\n"
+                      "\tLabel_%d:\n"
+                      ,string,label_stack[label_index]);
+    }
 ;
 
 if_exper
-    :IF LB expression RB compound_stat 
+    :IF LB expression RB 
     {
-        fprintf(file, "\tgoto EXIT_%d\n"
-                      "\tLabel_%d:\n"
-                      ,Exit,Label);
-
+        Exit++;
+        label_stack[label_index] = Label;
+        label_index++;
         Label++;
     }
 
@@ -226,7 +259,16 @@ else_stat
     : ELSE if_stat
     | ELSE compound_stat 
     { 
-        fprintf(file, "\tEXIT_%d:\n",Exit);
+        char string[5000] = "EXIT";
+        int i;
+        for(i = 0; i <= Exit; i++) {
+            char s[5] = "";
+            int2str(exit_stack[i],s);
+            strcat(string,"_");
+            strcat(string,s);
+        }
+        fprintf(file, "\t%s:\n",string);
+        exit_stack[Exit]++;
     }
 ;
 
@@ -1070,4 +1112,10 @@ void return_func() {
 
 }
 
+void init_exit_stack(){
+    int i;
+    for(i = 0;i<500; i++) {
+        exit_stack[i] = 0;
+    }
+}
 
