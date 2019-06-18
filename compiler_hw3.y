@@ -17,7 +17,9 @@ int global_int = 0;
 float global_float = 0;
 bool global_bool = false;
 
-/* varialble */
+/* label for if statement */
+int Label = 0;
+int Exit = 0;
 
 /* function */
 char func_name[100] = "";
@@ -29,7 +31,6 @@ char func_type[100] = "";
         1 is integer
         2 is float
 */
-int operator = 0;
 
 FILE *file; // To generate .j file for Jasmin
 
@@ -86,6 +87,7 @@ void assign_var(char *type,char *asgn);
 void get_ID();
 char calculate();
 void postfix(char *type,char *asgn);
+void compare();
 void casting(char *type,char *s);
 char type_return(char *type);
 void return_func(); 
@@ -201,40 +203,67 @@ statement
 ;
 
 if_stat
-    : IF LB expression RB compound_stat 
-    {
-        stack_index = 0;
+    : if_exper 
+    { 
+        fprintf(file, "\tEXIT_%d:\n",Exit);
     }
-    | IF LB expression RB compound_stat else_stat
+    | if_exper else_stat
+;
+
+if_exper
+    :IF LB expression RB compound_stat 
     {
-        stack_index = 0;
+        fprintf(file, "\tgoto EXIT_%d\n"
+                      "\tLabel_%d:\n"
+                      ,Exit,Label);
+
+        Label++;
+    }
+
+;
+
+else_stat
+    : ELSE if_stat
+    | ELSE compound_stat 
+    { 
+        fprintf(file, "\tEXIT_%d:\n",Exit);
     }
 ;
 
 expression
-    : term MT term
-    | term LT term
-    | term MTE term
-    | term LTE term
+    : term MT term 
+    {
+        compare();    
+        fprintf(file, "\tifle Label_%d\n", Label);
+    }
+    | term LT term 
+    {
+        compare();    
+        fprintf(file, "\tifge Label_%d\n", Label);
+    }
+    | term MTE term 
+    {
+        compare();    
+        fprintf(file, "\tiflt Label_%d\n", Label);
+    }
+    | term LTE term 
+    {
+        compare();    
+        fprintf(file, "\tifgt Label_%d\n", Label);
+    }
     | term EQ term
     {
-        if(!stack[stack_index-1] && !stack[stack_index-2] ){
-            fprintf(file, "\tisub\n");
-            stack[stack_index-2] = false;//int
-            stack_index--;
-        }else if(!stack[stack_index-1] && !stack[stack_index-2] ){
-            fprintf(file, "\tfsub\n");
-            stack[stack_index-2] = true;//true
-            stack_index--;
-        }
+        compare();    
+        fprintf(file, "\tifne Label_%d\n", Label);
     }
     | term NE term
+    {
+        compare();    
+        fprintf(file, "\tifeq Label_%d\n", Label);
+    }
 ;
 
 
-else_stat
-    : ELSE statement 
-;
 
 while_stat
     : WHILE LB operator_stat RB compound_stat
@@ -844,7 +873,6 @@ void insert_var(char *name,char *type,bool assigned) {
                       ,now_index);
 
         now_index++;
-        operator = 0;
         stack_index = 0;
     }
 
@@ -905,8 +933,6 @@ void assign_var(char *type,char *asgn) {
                   ,to
                   ,t
                   ,now_symbol->index);
-    operator = 0;
-    stack_index = 0;
 }
 
 char calculate() {
@@ -956,6 +982,22 @@ void postfix(char *type,char *asgn) {
                   ,t,now_symbol->index);
 
 }
+
+void compare() {
+
+    if(!stack[stack_index-1] && !stack[stack_index-2] ){
+        fprintf(file, "\tisub\n");
+        stack[stack_index-2] = false;//int
+        stack_index--;
+    }else if(!stack[stack_index-1] && !stack[stack_index-2] ){
+        fprintf(file, "\tfsub\n");
+        stack[stack_index-2] = true;//float
+        stack_index--;
+    }
+    stack_index = 0;
+
+}
+
 void get_ID() {
     if(now_symbol->index < 0) {
         if(!strcmp(now_symbol->type,"bool")) 

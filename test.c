@@ -1,11 +1,16 @@
 void main(){
 	int a = 20;
-	if(a == 20) {
-        int b = 3;
-    }else {
-        int c  = 4; 
+    if (a == 40){
+        print("a is equal to 40");
     }
-    int d = 5;
-    return;
+    else if (a > 40){
+        print("a is larger than 40");
+    }
+     else{
+        print(666);
+    }
+
+	return;
 }
+
 
