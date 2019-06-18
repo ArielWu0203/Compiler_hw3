@@ -85,6 +85,7 @@ void insert_var(char *name,char *type,bool assigned);
 void assign_var(char *type,char *asgn);
 void get_ID();
 char calculate();
+void postfix(char *type,char *asgn);
 void casting(char *type,char *s);
 char type_return(char *type);
 void return_func(); 
@@ -104,7 +105,7 @@ void return_func();
 /* Token without return */
 
 /* Arithmetic */
-%token ADD SUB MUL DIV MOD INC DEC
+%token ADD SUB MUL DIV MOD
 
 /* Relational */
 %token MT LT MTE LTE EQ NE
@@ -146,7 +147,7 @@ void return_func();
 
 %token <i_val> I_CONST
 %token <f_val> F_CONST
-%token <string> VOID INT FLOAT BOOL STRING ID STR_CONST ASGN ADDASGN SUBASGN MULASGN DIVASGN MODASGN
+%token <string> VOID INT FLOAT BOOL STRING ID STR_CONST ASGN ADDASGN SUBASGN MULASGN DIVASGN MODASGN INC DEC
 /* Nonterminal with return, which need to sepcify type */
 /*
 %type <f_val> stat
@@ -381,27 +382,29 @@ assign_stat
     {
         if(error == 0) {
             error = lookup_symbol($1,true,now_level,true); 
-            if(error>0) {
+            if(error>0) 
                 strcpy(ID_name,$1);
-            }else {
+            else 
                 assign_var(now_symbol->type,$2);   
-            }
         }
 
     }
     | ID INC SEMICOLON
     { 
         error = lookup_symbol($1,true,now_level,true); 
-        if(error>0) {
+        if(error>0) 
             strcpy(ID_name,$1);
-        }
+        else 
+            postfix(now_symbol->type,$2);
+        
     }
     | ID DEC SEMICOLON 
     { 
         error = lookup_symbol($1,true,now_level,true); 
-        if(error>0) {
-          strcpy(ID_name,$1);
-        }
+        if(error>0) 
+            strcpy(ID_name,$1);
+        else 
+            postfix(now_symbol->type,$2);
     }
 ;
 
@@ -459,6 +462,11 @@ operator_stat
             error = lookup_symbol($1,true,now_level,true); 
             if(error>0) {
                 strcpy(ID_name,$1);
+            }else {
+                postfix(now_symbol->type,$2);
+                char t = type_return(now_symbol->type);
+                fprintf(file, "\t%cload %d\n",t,now_symbol->index);
+                stack_index++;
             }
         }
     }
@@ -468,6 +476,11 @@ operator_stat
             error = lookup_symbol($1,true,now_level,true); 
             if(error>0) {
                 strcpy(ID_name,$1);
+            }else {
+                postfix(now_symbol->type,$2);
+                char t = type_return(now_symbol->type);
+                fprintf(file, "\t%cload %d\n",t,now_symbol->index);
+                stack_index++;
             }
         }
     }
@@ -818,7 +831,7 @@ void assign_var(char *type,char *asgn) {
                 
     if(!strcmp(asgn,"=")) {  
     
-    } else {
+    }else {
  
         if(stack[stack_index-1]) //float
             s = 'f';
@@ -891,6 +904,31 @@ char calculate() {
     }
     stack_index -= 1;
     return t; 
+}
+
+void postfix(char *type,char *asgn) {
+
+    char t = type_return(type);
+    char s[10] = "";
+    char postfix[10] = "";
+
+    if(!strcmp(asgn,"++")) 
+        strcpy(postfix,"add");
+    else 
+        strcpy(postfix,"sub");
+
+    if (t == 'f')
+        strcpy(s,"\ti2f\n");
+
+    fprintf(file ,"\t%cload %d\n"
+                  "\tldc 1\n""%s"
+                  "\t%c%s\n"
+                  "\t%cstore %d\n"
+                  ,t,now_symbol->index
+                  ,s
+                  ,t,postfix
+                  ,t,now_symbol->index);
+
 }
 void get_ID() {
     if(now_symbol->index < 0) {

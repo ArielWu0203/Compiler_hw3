@@ -44,8 +44,8 @@ id			{letter}+({letter}|{digit})*
 "*" 	{ CONCAT; return MUL; }
 "/" 	{ CONCAT; return DIV; }
 "%"     { CONCAT; return MOD; }
-"++"    { CONCAT; return INC; }
-"--"    { CONCAT; return DEC; }
+"++"    { CONCAT; yylval.string = strdup(yytext); return INC; }
+"--"    { CONCAT; yylval.string = strdup(yytext);return DEC; }
 
  /* Relational */
 ">"		{ CONCAT; return MT; }
