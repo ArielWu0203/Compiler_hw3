@@ -381,7 +381,7 @@ function_stat
             }
             head = head->next;
         }
-
+        return_func();
         fprintf(file, ".end method\n");
     }
     | func_def_start RCB
@@ -404,26 +404,45 @@ function_stat
 func_def_start
     : func_def LCB 
     {
-        if(!func_error) {
-            for(int i = 0 ; i < param_i ; i++) {
-                insert_symbol(-1,param[i],"parameter",param_t[i],now_level,""); 
+        if(!func_error) { 
+        
+            char t;
+            char s[20] = "";
+            for(int i = 0 ; i < param_i ; i++){
+                t = type_return(param_t[i]);
+                if(t=='i')   
+                    strcat(s,"I");
+                else if(t=='f')
+                    strcat(s,"F");
             }
-          }
+
+            // func type
+            if(!strcmp(func_type,"int") || !strcmp(func_type,"bool"))
+                t = 'I';
+            else if(!strcmp(func_type,"float"))
+                t = 'F';
+            else if(!strcmp(func_type,"void"))
+                t = 'V';
+        
+            // main or other function
+            if(!strcmp(func_name,"main")) {
+                fprintf(file, ".method public static main([Ljava/lang/String;)V\n"
+                              ".limit stack 50\n"
+                              ".limit locals 50\n");
+            }else {
+                fprintf(file, ".method public static %s(%s)%c\n"
+                              ".limit stack 50\n"
+                              ".limit locals 50\n"
+                              ,func_name,s,t);
+            }
+
+            for(int i = 0 ; i < param_i ; i++)  {
+                insert_symbol(now_index,param[i],"parameter",param_t[i],now_level,""); 
+            now_index++;
+            }
+        }
         param_i=0;
         func_error = false;
-
-        // main function
-        if(!strcmp(func_name,"main")) {
-            fprintf(file, ".method public static main([Ljava/lang/String;)V\n"
-                          ".limit stack 50\n"
-                          ".limit locals 50\n");
-        }else {
-            fprintf(file, ".method public static %s()\n"
-                          ".limit stack 50\n"
-                          ".limit locals 50\n"
-                          ,func_name);
-        }
-
     }
 ;
 
@@ -469,6 +488,28 @@ function_call
         error = lookup_symbol($1,false,now_level,true); 
         if(error>0) {
             strcpy(ID_name,$1);
+        }else {
+            char t; 
+            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool"))
+                t = 'I';
+            else if(!strcmp(now_symbol->type,"float"))
+                t = 'F';
+            else if(!strcmp(now_symbol->type,"void"))
+                t = 'V';
+            
+            int i=0;
+            char s[100] = "";
+            while(*(now_symbol->attr + i) != '\0') {
+                if(now_symbol->attr[i] == 'i')
+                    strcat(s,"I");
+                else if(now_symbol->attr[i] == 'b')
+                    strcat(s,"I");
+                else if(now_symbol->attr[i] == 'f')
+                    strcat(s,"F");
+                i++;
+            }
+            fprintf(file, "\tinvokestatic compiler_hw3/%s(%s)%c\n"
+                          ,now_symbol->name,s,t);
         }
     }  
     | ID LB RB
@@ -476,24 +517,29 @@ function_call
         error = lookup_symbol($1,false,now_level,true); 
         if(error>0) {
             strcpy(ID_name,$1);
+        }else {
+            char t;
+            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool"))
+                t = 'I';
+            else if(!strcmp(now_symbol->type,"float"))
+                t = 'F';
+            else if(!strcmp(now_symbol->type,"void"))
+                t = 'V';
+
+            fprintf(file, "\tinvokestatic compiler_hw3/%s()%c\n"
+                          ,now_symbol->name,t);
         }
     }
 ;
 
 return_stat
     : RET SEMICOLON
-    {
-        return_func();
-    }
     | RET operator_stat SEMICOLON
-    {
-        return_func();
-    }
 ;
     
 parameter_list
-    : parameter_list COMMA operator_stat
-    | operator_stat
+    : parameter_list COMMA term
+    | term
 ;
 
 declaration_list
@@ -882,7 +928,8 @@ void del_node(Entry *node) {
 void dump_symbol(int scope) {
 
     Entry *head = front;
-    
+    int index = 0;
+
     while(head!=NULL) {
         
         if(head->scope_level == scope) {
@@ -890,12 +937,13 @@ void dump_symbol(int scope) {
             printf("\n%-10s%-10s%-12s%-10s%-10s%-10s\n\n",
                 "Index", "Name", "Kind", "Type", "Scope", "Attribute");
             while(head != NULL && head->scope_level == scope) {
-                printf("%-10d%-10s%-12s%-10s%-10d%s\n",head->index,head->name,head->kind,head->type,head->scope_level,head->attr);
+                printf("%-10d%-10s%-12s%-10s%-10d%s\n",index,head->name,head->kind,head->type,head->scope_level,head->attr);
 
                 Entry *tmp = head;
                 head = head->next;
                 del_node(tmp);
                 now_index--;
+                index++;
             }
             printf("\n");
             return;
@@ -1155,10 +1203,11 @@ void return_func() {
 
     if(!strcmp(func_type,"void"))
         fprintf(file, "\treturn\n");
-    else if(!strcmp(func_type, "int"))
+    else if(!strcmp(func_type, "int")) 
         fprintf(file, "\tireturn\n");
     else if(!strcmp(func_type, "float"))
         fprintf(file, "\tfreturn\n");
+    
     return;
 
 }
