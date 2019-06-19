@@ -197,8 +197,6 @@ declaration
 
 statement
     : if_stat
-    {
-    }
     | while_stat
     | compound_stat
     | function_stat
@@ -210,7 +208,7 @@ statement
 
 if_stat
     : if_exper_compound
-    {
+    { 
         char string[5000] = "EXIT";
         int i;
         for(i = 0; i <= Exit; i++) {
@@ -302,6 +300,26 @@ expression
     {
         compare();    
         fprintf(file, "\tifeq Label_%d\n", Label);
+    }
+    | TRUE
+    {
+        stack_index = 0;
+    }
+    | FALSE
+    {
+        fprintf(file, "\tgoto Label_%d\n",Label);
+        stack_index = 0;
+    }
+    | ID
+    {
+         error = lookup_symbol($1,true,now_level,true); 
+        if(error != 0)
+            strcpy(ID_name,$1);
+        else 
+            get_ID();
+        fprintf(file, "\tifle Label_%d\n",Label);
+        stack_index = 0;
+
     }
 ;
 
@@ -1027,14 +1045,15 @@ void postfix(char *type,char *asgn) {
 
 void compare() {
 
-    if(!stack[stack_index-1] && !stack[stack_index-2] ){
+    if(!stack[stack_index-1] && !stack[stack_index-2] ){ // int,int
         fprintf(file, "\tisub\n");
         stack[stack_index-2] = false;//int
         stack_index--;
-    }else if(!stack[stack_index-1] && !stack[stack_index-2] ){
+    }else if(stack[stack_index-1] && stack[stack_index-2] ){ // float,float
         fprintf(file, "\tfsub\n");
         stack[stack_index-2] = true;//float
         stack_index--;
+        fprintf(file, "\tf2i\n");
     }
     stack_index = 0;
 
