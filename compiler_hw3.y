@@ -22,15 +22,21 @@ int Label = 0;
 int Exit = 0;
 int exit_stack[500];
 void init_exit_stack();
-int label_stack[500];
+int label_stack[1000];
 int label_index = 0;
+
+/* label for while statement */
+int While = 0;
+int while_stack[1000];
+int while_index = 0;
+
 
 /* function */
 char func_name[100] = "";
 char func_type[100] = "";
 
 /* 
-    Operator :
+    Operator nn:
         0 is start
         1 is integer
         2 is float
@@ -324,9 +330,34 @@ expression
 ;
 
 
-
 while_stat
-    : WHILE LB operator_stat RB compound_stat
+    : while_stat_condition compound_stat
+    {
+        label_index--;
+        while_index--;
+        fprintf(file, "\tgoto While_%d\n"
+                      "\tLabel_%d:\n"
+                      ,while_stack[while_index],label_stack[label_index]);
+   
+    }
+
+;
+while_left
+    : WHILE LB 
+    {
+      fprintf(file, "\tWhile_%d:\n",While);
+      while_stack[while_index] = While;
+      while_index++;
+      While++;
+    }
+;
+while_stat_condition
+    : while_left expression RB
+    { 
+        label_stack[label_index] = Label;
+        label_index++;
+        Label++;
+    }
 ;
 
 function_stat
@@ -731,6 +762,7 @@ int main(int argc, char** argv)
     yylineno = 0;
 
     create_symbol();
+    init_exit_stack();
 
     file = fopen("compiler_hw3.j","w");
 
