@@ -381,7 +381,6 @@ function_stat
             }
             head = head->next;
         }
-        return_func();
         fprintf(file, ".end method\n");
     }
     | func_def_start RCB
@@ -394,9 +393,8 @@ function_stat
             }
             head = head->next;
         }
-
+        return_func();
         fprintf(file, ".end method\n");
-
     }
     | function_call SEMICOLON
 ;
@@ -435,7 +433,7 @@ func_def_start
                               ".limit locals 50\n"
                               ,func_name,s,t);
             }
-
+            
             for(int i = 0 ; i < param_i ; i++)  {
                 insert_symbol(now_index,param[i],"parameter",param_t[i],now_level,""); 
             now_index++;
@@ -485,31 +483,42 @@ func_def
 function_call
     : ID LB parameter_list RB  
     {
-        error = lookup_symbol($1,false,now_level,true); 
-        if(error>0) {
-            strcpy(ID_name,$1);
-        }else {
-            char t; 
-            if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool"))
-                t = 'I';
-            else if(!strcmp(now_symbol->type,"float"))
-                t = 'F';
-            else if(!strcmp(now_symbol->type,"void"))
-                t = 'V';
+        if(error == 0) {
+            error = lookup_symbol($1,false,now_level,true); 
+            if(error>0) {
+                strcpy(ID_name,$1);
+            }else {
+                char t; 
+                if(!strcmp(now_symbol->type,"int") || !strcmp(now_symbol->type,"bool"))
+                    t = 'I';
+                else if(!strcmp(now_symbol->type,"float"))
+                    t = 'F';
+                else if(!strcmp(now_symbol->type,"void"))
+                    t = 'V';
             
-            int i=0;
-            char s[100] = "";
-            while(*(now_symbol->attr + i) != '\0') {
-                if(now_symbol->attr[i] == 'i')
-                    strcat(s,"I");
-                else if(now_symbol->attr[i] == 'b')
-                    strcat(s,"I");
-                else if(now_symbol->attr[i] == 'f')
-                    strcat(s,"F");
-                i++;
+                if(t == 'I') {
+                    stack[stack_index] = false;
+                    stack_index++;
+                }else if(t == 'F') {
+                    stack[stack_index] = true;
+                    stack_index++;
+                }   
+
+                int i=0;
+                char s[100] = "";
+                while(*(now_symbol->attr + i) != '\0') {
+                    if(now_symbol->attr[i] == 'i')
+                        strcat(s,"I");
+                    else if(now_symbol->attr[i] == 'b')
+                        strcat(s,"I");
+                    else if(now_symbol->attr[i] == 'f')
+                        strcat(s,"F");
+                    i++;
+                }   
+                fprintf(file, "\tinvokestatic compiler_hw3/%s(%s)%c\n"
+                              ,now_symbol->name,s,t);
+                
             }
-            fprintf(file, "\tinvokestatic compiler_hw3/%s(%s)%c\n"
-                          ,now_symbol->name,s,t);
         }
     }  
     | ID LB RB
@@ -525,6 +534,15 @@ function_call
                 t = 'F';
             else if(!strcmp(now_symbol->type,"void"))
                 t = 'V';
+ 
+            if(t == 'I') {
+                stack[stack_index] = false;
+                stack_index++;
+            }else if(t == 'F') {
+                stack[stack_index] = true;
+                stack_index++;
+            }   
+
 
             fprintf(file, "\tinvokestatic compiler_hw3/%s()%c\n"
                           ,now_symbol->name,t);
@@ -534,7 +552,13 @@ function_call
 
 return_stat
     : RET SEMICOLON
+    {
+        fprintf(file, "\treturn\n");
+    }
     | RET operator_stat SEMICOLON
+    {
+        return_func();
+    }
 ;
     
 parameter_list
@@ -1000,8 +1024,11 @@ void insert_var(char *name,char *type,bool assigned) {
         
         char t = type_return(type);
 
-        if(!assigned) 
+        if(!assigned){
             fprintf(file, "\tldc 0\n");
+            stack[stack_index] = false;
+            stack_index++;
+        }
 
         char s[10] = "";
         casting(type,s);
